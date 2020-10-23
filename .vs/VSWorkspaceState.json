@@ -1,0 +1,12 @@
+{
+  "ExpandedNodes": [
+    "",
+    "\\src",
+    "\\src\\app",
+    "\\src\\app\\client",
+    "\\src\\app\\image-capture",
+    "\\src\\environments"
+  ],
+  "SelectedNode": "\\src\\app\\client\\client.component.ts",
+  "PreviewInSolutionExplorer": false
+}
