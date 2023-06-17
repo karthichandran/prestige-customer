@@ -5,6 +5,6 @@
     "\\app\\client",
     "\\environments"
   ],
-  "SelectedNode": "\\environments\\environment.prod.ts",
+  "SelectedNode": "\\app\\client\\client.component.ts",
   "PreviewInSolutionExplorer": false
 }

@@ -2,11 +2,16 @@
   "ExpandedNodes": [
     "",
     "\\src",
+    "\\src\\@fuse",
+    "\\src\\@fuse\\utils",
     "\\src\\app",
     "\\src\\app\\client",
+    "\\src\\app\\core",
+    "\\src\\app\\fuse-config",
     "\\src\\app\\image-capture",
+    "\\src\\app\\shared",
     "\\src\\environments"
   ],
-  "SelectedNode": "\\src\\app\\client\\client.component.ts",
+  "SelectedNode": "\\src\\app\\client\\client.module.ts",
   "PreviewInSolutionExplorer": false
 }

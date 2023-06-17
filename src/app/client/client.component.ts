@@ -1,4 +1,4 @@
-import { Component, OnDestroy, OnInit, ViewChildren, QueryList, ElementRef, ViewChild } from '@angular/core';
+import { Component, OnDestroy, OnInit, ViewChildren, QueryList, ElementRef, ViewChild ,ViewEncapsulation} from '@angular/core';
 import { FormBuilder, FormGroup, Validators, FormGroupDirective, ValidatorFn, AbstractControl, FormControl } from '@angular/forms';
 import { HttpEventType } from '@angular/common/http';
 import { fuseAnimations } from '@fuse/animations';
@@ -8,43 +8,34 @@ import { StatesService } from '../shared/services/states.service';
 import * as _ from 'lodash';
 import { ToastrService } from 'ngx-toastr';
 import * as moment from 'moment';
+import { MatTabChangeEvent } from '@angular/material/tabs';
+import { MatStepper } from '@angular/material/stepper';
 import { MomentDateAdapter, MAT_MOMENT_DATE_ADAPTER_OPTIONS } from '@angular/material-moment-adapter';
 import { DateAdapter, MAT_DATE_FORMATS, MAT_DATE_LOCALE } from '@angular/material/core';
 import * as _moment from 'moment';
-import { isUndefined } from 'util';
 import * as fileSaver from 'file-saver';
 import { MatDialog, MatDialogRef, MAT_DIALOG_DATA } from '@angular/material/dialog';
 import { ImageCaptureDialogComponent} from 'app/image-capture/image-capture.component';
 import { DeviceDetectorService } from 'ngx-device-detector';
-// tslint:disable-next-line:no-duplicate-imports
-//import { default as _rollupMoment } from 'moment';
-//const moment = _rollupMoment || _moment;
-
-// See the Moment.js docs for the meaning of these formats:
-// https://momentjs.com/docs/#/displaying/format/
-//export const MY_FORMATS = {
-//  parse: {
-//    dateInput: 'LL',
-//  },
-//  display: {
-//    dateInput: 'DD-MMM-YYYY',
-//    monthYearLabel: 'MMM YYYY',
-//    dateA11yLabel: 'LL',
-//    monthYearA11yLabel: 'MMMM YYYY',
-//  }
-//};
+import { ThemePalette } from '@angular/material/core';
+import { MatSelect } from '@angular/material/select';
+import { Subject } from 'rxjs';
+import { ReplaySubject } from 'rxjs/internal/ReplaySubject';
+import { takeUntil } from 'rxjs/operators';
 
 @Component({
   selector: 'app-client',
   templateUrl: './client.component.html',
   styleUrls: ['./client.component.scss'],
-  animations: fuseAnimations
+  animations: fuseAnimations,
+  encapsulation: ViewEncapsulation.None
   //providers: [
   //  { provide: DateAdapter,  useClass: MomentDateAdapter, deps: [MAT_DATE_LOCALE, MAT_MOMENT_DATE_ADAPTER_OPTIONS]    },
   //  { provide: MAT_DATE_FORMATS, useValue: MY_FORMATS },
   //],
 })
 export class ClientComponent implements OnInit, OnDestroy {
+  coOwnersForms:any[] = [];
   customerform: FormGroup;
   propertyForm: FormGroup;
 
@@ -52,7 +43,6 @@ export class ClientComponent implements OnInit, OnDestroy {
   states: any[] = [];
   form16Options: any[] = [{ 'id': 1, 'description': 'Yes' }, { 'id': 0, 'description': 'No' }];
   paymentMethods: any[] = [{ 'paymentMethodID': 1, 'paymentMethod': 'Lumpsum' }, { 'paymentMethodID': 2, 'paymentMethod': 'per Transaction' }];
-  statusDDl: any[] = [{ 'id': 1, 'description': 'Saved' }, { 'id': 2, 'description': 'Submitted' }, { 'id': 3, 'description': 'Cancelled' }, { 'id': 4, 'description': 'Assigned' }, { 'id': 5, 'description': 'Blocked' }, { 'id': 6, 'description': 'Released' }];
   rowData: any[] = [];
   customerData: any = [];
   customerColumnDef: any[] = [];
@@ -73,10 +63,54 @@ export class ClientComponent implements OnInit, OnDestroy {
   @ViewChildren(FusePerfectScrollbarDirective)
   fuseScrollbarDirectives: QueryList<FusePerfectScrollbarDirective>;
   panDoc: any = {};
+  VisibleCoCownerBtn: boolean = false;
+  ShowCoOwnerOption: boolean = true;
+  ShowMoreCoOwnerOption: boolean = false;
+  shareTab: boolean = true;
+  currentCustomer: number = 0;
+  selectedTab: number = 0;
+  showGird: boolean = false;
+  tabBackgroundColor: string = "#ff4081";
   @ViewChild('shareGrid') sharegridRef: ElementRef;
+  @ViewChild('nameField') nameFieldRef: ElementRef;
+
+  //Property Filter
+  public propertyFilterCtrl: FormControl = new FormControl();
+  @ViewChild('PropertyFilterSelect', { static: true }) PropertyFilterSelect: MatSelect;
+  /** Subject that emits when the component has been destroyed. */
+  protected _onDestroy = new Subject<void>();
+  public filteredProperty: ReplaySubject<any[]> = new ReplaySubject<any[]>();
 
   constructor(private _formBuilder: FormBuilder, private statesService: StatesService, private clientService: ClientService, private toastr: ToastrService, private dialog: MatDialog, private deviceService: DeviceDetectorService) {
 
+  }
+  customerformObj() {
+    return this._formBuilder.group({
+      prospectID: [''],
+      prospectPropertyID: [''],
+      name: ['', Validators.required],
+      //addressPremises: [''],
+      // adressLine1: [''],
+      // addressLine2: [''],
+      // city: ['', Validators.required],
+      // stateId: ['', Validators.required],
+      // pinCode: ['', Validators.compose([  Validators.required,this.pinCodeValidator(), Validators.maxLength(10)])],
+       pan: ['', Validators.compose([Validators.required, this.panValidator(), Validators.maxLength(10)])],
+      emailID: ['', Validators.email],
+      //mobileNo: ['', Validators.compose([Validators.required, , Validators.maxLength(15)])],
+      dateOfBirth: ['', Validators.required],
+      isTracesRegistered: [''],
+      traces: ['no'],
+      tracesPassword: [''],
+      share: [''],
+      // allowForm16B: [''],
+      // form16b: ['yes'],
+      // alternateNumber: [''],
+      // isd: ['+91'],
+      panBlobId: [''],
+      label: ['Owner'],
+      incomeTaxPassword:['', Validators.required]
+    });
   }
 
   ngOnInit(): void {
@@ -85,26 +119,43 @@ export class ClientComponent implements OnInit, OnDestroy {
       prospectID: [''],
       prospectPropertyID: [''],
       name: ['', Validators.required],
-      addressPremises: [''],
-      adressLine1: ['', Validators.required],
-      addressLine2: [''],
-      city: ['', Validators.required],
-      stateId: ['', Validators.required],
-      pinCode: ['', Validators.compose([Validators.required, this.pinCodeValidator(), Validators.maxLength(10)])],
-      pan: ['', Validators.compose([Validators.required, this.panValidator(), Validators.maxLength(10)])],
+      //addressPremises: [''],
+      // adressLine1: [''],
+      // addressLine2: [''],
+      // city: ['', Validators.required],
+      // stateId: ['', Validators.required],
+      // pinCode: ['', Validators.compose([ Validators.required, this.pinCodeValidator(), Validators.maxLength(10)])],
+       pan: ['', Validators.compose([Validators.required, this.panValidator(), Validators.maxLength(10)])],
       emailID: ['', Validators.email],
-      mobileNo: ['', Validators.compose([Validators.required, , Validators.maxLength(15)])],
+    //  mobileNo: ['', Validators.compose([Validators.required, , Validators.maxLength(15)])],
       dateOfBirth: ['', Validators.required],
       isTracesRegistered: [''],
       traces: ['no'],
       tracesPassword: [''],
       share: [''],
-      allowForm16B: [''],
-      form16b: ['yes'],
-      alternateNumber: [''],
-      isd: ['+91'],
-      panBlobId: ['']
+      // allowForm16B: [''],
+      // form16b: ['yes'],
+      // alternateNumber: [''],
+      // isd: ['+91'],
+      panBlobId: [''],
+      label: ['Owner'],
+      incomeTaxPassword:['', Validators.required]
     });
+    let item = {
+      'label': 'Customer',
+      ShowCoOwnerOption: true,
+      ShowMoreCoOwnerOption: false,
+      ShowDeleteBtn: false,
+      AddNewCoOwner: '',
+      AddMoreCoOwner: '',
+      Previous: false,
+      Next: false,
+      Back: false,
+      showAddressClearBtn: false,
+      panDoc: {},
+      'owner': this.customerformObj()
+    };
+    this.coOwnersForms.push(item);
     this.propertyForm = this._formBuilder.group({
       declarationDate: [new Date()],
       propertyID: [''],
@@ -118,6 +169,13 @@ export class ClientComponent implements OnInit, OnDestroy {
     this.getAllStates();
     this.getAllProperties();
     this.checkDevice();
+
+    //initiate property filter
+    //this.filteredProperty.next(this.propertyList.slice());
+    this.propertyFilterCtrl.valueChanges.pipe(takeUntil(this._onDestroy))
+      .subscribe(() => {
+        this.filterProperty();
+      });
   }
 
   checkDevice() {
@@ -130,28 +188,89 @@ export class ClientComponent implements OnInit, OnDestroy {
   }
 
   clear() {
-    this.showAddressClearBtn = false;
-    this.panDoc = {};
-    this.customerData = [];
-    this.customerform.reset();
     this.propertyForm.reset();
-    this.clients = [];
-    this.customerform.get('traces').setValue('no');
-    this.customerform.get('form16b').setValue('yes');
-    this.customerform.get('isd').setValue('+91');
-    this.propertyForm.get('declarationDate').setValue(new Date());
+    this.coOwnersForms = [];
+    this.addTab();
+    this.coOwnersForms[this.coOwnersForms.length-1].Back = false;
+    this.coOwnersForms[this.coOwnersForms.length - 1].ShowDeleteBtn = false;
   }
 
-  clearCustomer() {
-    this.customerform.reset();
-    this.customerform.get('traces').setValue('no');
-    this.customerform.get('form16b').setValue('yes');
-    this.customerform.get('isd').setValue('+91');
-  }
-  /**
-     * On destroy
-     */
+  
   ngOnDestroy(): void {
+    this._onDestroy.next();
+    this._onDestroy.complete();
+  }
+  addTab() {
+    this.customerform = this._formBuilder.group({
+      prospectID: [''],
+      prospectPropertyID: [''],
+      name: ['', Validators.required],
+      //addressPremises: [''],
+      // adressLine1: [''],
+      // addressLine2: [''],
+      // city: ['', Validators.required],
+      // stateId: ['', Validators.required],
+      // pinCode: ['', Validators.compose([ Validators.required, this.pinCodeValidator(), Validators.maxLength(10)])],
+       pan: ['', Validators.compose([Validators.required, this.panValidator(), Validators.maxLength(10)])],
+      emailID: ['', Validators.email],
+    //  mobileNo: ['', Validators.compose([Validators.required, , Validators.maxLength(15)])],
+      dateOfBirth: ['', Validators.required],
+      isTracesRegistered: [''],
+      traces: ['no'],
+      tracesPassword: [''],
+      share: [''],
+      // allowForm16B: [''],
+      // form16b: ['yes'],
+      // alternateNumber: [''],
+      // isd: ['+91'],
+      panBlobId: [''],
+      label: ['Owner'],
+      incomeTaxPassword:['', Validators.required]
+    });
+    let item = {
+      'label': 'Customer',
+      ShowCoOwnerOption: true,
+      ShowMoreCoOwnerOption: false,
+      ShowDeleteBtn: false,
+      AddNewCoOwner : '',
+      AddMoreCoOwner: '',
+      Previous: false,
+      Next: false,
+      Back: true,
+      showAddressClearBtn : false,
+      panDoc: {},
+      'owner': this.customerformObj()
+    };
+    if (this.coOwnersForms.length >= 1) {
+      item.ShowCoOwnerOption = false;
+      item.ShowMoreCoOwnerOption = true;
+    }
+    //var existItem = _.clone(this.coOwnersForms[this.coOwnersForms.length - 1].owner);
+    //item.owner.get("addressPremises").setValue(existItem.value.addressPremises);
+    // item.owner.get("adressLine1").setValue(existItem.value.adressLine1);
+    // item.owner.get("addressLine2").setValue(existItem.value.addressLine2);
+    // item.owner.get("city").setValue(existItem.value.city);
+    // item.owner.get("stateId").setValue(existItem.value.stateId);
+    // item.owner.get("pinCode").setValue(existItem.value.pinCode);
+
+    //item.owner.get("isTracesRegistered").setValue(existItem.value.isTracesRegistered);
+    //item.owner.get("traces").setValue(existItem.value.traces);
+    //item.owner.get("tracesPassword").setValue(existItem.value.tracesPassword);
+    // item.owner.get("allowForm16B").setValue(existItem.value.allowForm16B);
+    // item.owner.get("form16b").setValue(existItem.value.form16b);
+    //item.showAddressClearBtn = true;
+    this.coOwnersForms.push(item);   
+    this.shareTab = true;
+    var newIndex = this.coOwnersForms.length - 1;
+    if (this.selectedTab == newIndex) {
+      this.selectedTab = 0;
+      setTimeout(() => {
+        this.selectedTab = newIndex;
+      }, 500);
+      
+    }
+    else
+      this.selectedTab = newIndex;
   }
 
   showClient(eve, model: any) {
@@ -163,12 +282,13 @@ export class ClientComponent implements OnInit, OnDestroy {
     else
       model.traces = "no";
 
-    if (model.allowForm16B)
-      model.form16b = "yes";
-    else
-      model.form16b = "no";
+    // if (model.allowForm16B)
+    //   model.form16b = "yes";
+    // else
+    //   model.form16b = "no";
     model.pinCode = isNaN(model.pinCode) ? "" : model.pinCode.trim();
     this.customerform.patchValue(model);
+    //Note : this should be enable after complete
     this.loadPanDocument(model.pan);
   }
 
@@ -179,24 +299,22 @@ export class ClientComponent implements OnInit, OnDestroy {
       return !ret ? { 'invalidNumber': { value: control.value } } : null;
     };
   }
-  panUploadClick(uploadBtn: Element) {
-    if (this.customerform.get('pan').value == "") {
-      this.toastr.warning("Please Fill the Pan then upload");
-    } else
-      uploadBtn.dispatchEvent(new MouseEvent('click'));
-    //if (isUndefined(this.panDoc.fileName))
-    //  uploadBtn.dispatchEvent(new MouseEvent('click'));
-    //else
-    //  this.toastr.warning("Please delete the current document then Upload");
-  }
 
-  openDialogInMobile(browseBtn: Element) {
-    let isValid = new RegExp('^[A-Za-z]{5}[0-9]{4}[A-Za-z]$').test(this.customerform.get('pan').value);
-    if (!isValid) {
-      this.toastr.warning("Please Fill the Pan then upload");
-    } else
-      browseBtn.dispatchEvent(new MouseEvent('click'));
-  }
+  // panUploadClick(uploadBtn: Element) {
+  //   if (this.coOwnersForms[this.currentCustomer].owner.get('pan').value == "") {
+  //     this.toastr.warning("Please Fill the Pan then upload");
+  //   } else
+  //     uploadBtn.dispatchEvent(new MouseEvent('click'));
+   
+  // }
+
+  // openDialogInMobile(browseBtn: Element) {
+  //   let isValid = new RegExp('^[A-Za-z]{5}[0-9]{4}[A-Za-z]$').test(this.coOwnersForms[this.currentCustomer].owner.get('pan').value);
+  //   if (!isValid) {
+  //     this.toastr.warning("Please Fill the Pan then upload");
+  //   } else
+  //     browseBtn.dispatchEvent(new MouseEvent('click'));
+  // }
 
   getPropertyAndCustomer(prospectPropertyID:number) {
     this.clientService.getCustomerAndProperty(prospectPropertyID).subscribe(res => {
@@ -233,10 +351,11 @@ export class ClientComponent implements OnInit, OnDestroy {
         return;
       }
 
-      if (!this.isValid(this.customerform.value.panBlobId)) {
-        this.toastr.error("Please upload PAN Document");
-        return;
-      }
+      //Note : Please Enable on complete
+      // if (!this.isValid(this.customerform.value.panBlobId)) {
+      //   this.toastr.error("Please upload PAN Document");
+      //   return;
+      // }
 
       var model = this.customerform.value;
       if (!this.isValid(model.prospectID) || model.prospectID == 0)
@@ -248,49 +367,20 @@ export class ClientComponent implements OnInit, OnDestroy {
       else
         model.isTracesRegistered = false;
 
-      if (model.form16b == 'yes')
-        model.allowForm16B = true;
-      else
-        model.allowForm16B = false;
+      // if (model.form16b == 'yes')
+      //   model.allowForm16B = true;
+      // else
+      //   model.allowForm16B = false;
 
       model.dateOfBirth = moment(model.dateOfBirth).local().format("YYYY-MM-DD");
-      if (this.clients.length > 0) {
-        model.prospectPropertyID = this.propertyForm.value.prospectPropertyID;
-        this.clientService.saveOneCustomer(model, isNewEntry).subscribe(res => {          
-          this.clear();
-          this.getPropertyAndCustomer(model.prospectPropertyID);
-          if (showAddress) {
-            this.ShowAddressDetails(model);
-          }
-          else {
-            this.toastr.success("Customer is Saved");
-            this.showAddressClearBtn = false;
-          }
-        }, (e) => {
-          this.toastr.error(e.error.error);
-        });
-      }
-      else {
-        let property = { 'propertyID': this.propertyForm.value.propertyID, 'unitNo': this.propertyForm.value.unitNo, 'declarationDate': moment(this.propertyForm.value.declarationDate).local().format("YYYY-MM-DD"), 'prospectPropertyID': 0 };
-        let vm: any = {};
-        model.prospectPropertyID = 0;
-        vm.prospectPropertyDto = property;
-        vm.prospectDto = [model];
-        this.clientService.saveCustomer(vm).subscribe((res) => {
-          // this.getCustomer(res);
-          this.clear();
-          this.getPropertyAndCustomer(res);
-          if (showAddress) {
-            this.ShowAddressDetails(model);
-          }
-          else {
-            this.toastr.success("Customer is Saved");
-            this.showAddressClearBtn = false;
-          }
-        }, (e) => {
-          this.toastr.error(e.error.error);
-        });
-      }
+
+      model.prospectPropertyID = 0;
+      model.prospectID = this.clients.length+1;
+      this.clients.push(_.clone( model));
+     // this.customerData = [... this.clients];
+      this.clients = [... this.clients];
+      if(showAddress)
+      this.ShowAddressDetails(model);       
     }
     else {
       this.toastr.error("Please fill the all manditory fields");
@@ -300,33 +390,74 @@ export class ClientComponent implements OnInit, OnDestroy {
   ShowAddressDetails(model: any) {
     model.prospectID = 0;
     model.name = '';
-    model.mobileNo = '';
+   // model.mobileNo = '';
     model.emailID = '';
     model.pan = '';
     model.dateOfBirth = '';
-    model.form16b = 'yes';
+    //model.form16b = 'yes';
     model.tracesPassword = "";
-    model.alternateNumber = "";
-    model.isd = "+91";
+   // model.alternateNumber = "";
+    //model.isd = "+91";
     this.customerform.reset();
     this.customerform.patchValue(model);
     this.showAddressClearBtn = true;
   }
 
   saveCustomer(): void {
-    //if (!this.ValidateAndCleanCustomer())
-    //  return;
-    if (this.clients.length == 0) {
-      this.toastr.error("Please Add minimum one customer");
-      return;
-    }
-
-    if (!this.propertyForm.valid) {
-      this.toastr.error("Please Fill the Property details");
-      return;
-    }
-
+    this.clients = [];
+    let share = (100 / this.coOwnersForms.length).toFixed(2);
+    _.forEach(this.coOwnersForms, obj => {
+      obj.owner.value.share = share;
+      this.clients.push(obj.owner.value);
+    });
+   
     if (!this.validateSharePercentage()) {
+      this.SetupShareGrid();
+      return;
+    }
+
+    _.forEach(this.clients, obj => {
+      if (obj.traces == "yes" || obj.isTracesRegistered)
+        obj.isTracesRegistered = true;
+      else
+        obj.isTracesRegistered = false;
+
+      // if (obj.form16b == 'yes')
+      //   obj.allowForm16B = true;
+      // else
+      //   obj.allowForm16B = false;
+
+      obj.dateOfBirth = moment(obj.dateOfBirth).local().format("YYYY-MM-DD");
+      obj.prospectPropertyID = 0;
+      obj.prospectID = 0;
+    });
+   
+
+
+     let property = { 'propertyID': this.propertyForm.value.propertyID, 'unitNo': this.propertyForm.value.unitNo, 'declarationDate': this.propertyForm.value.declarationDate, 'prospectPropertyID': 0 };
+    let vm: any = {};
+    vm.prospectPropertyDto = property;
+    vm.prospectDto = this.clients;
+    this.clientService.saveCustomer(vm).subscribe((res) => {
+      this.toastr.success("Thanks for submitting your declaration form. We assure you our best services at all times.");     
+     // this.clear();
+      window.location.reload();
+    }, (e) => {
+        this.toastr.error(e.error.error);
+    });
+  }
+
+  SetupShareGrid() {
+    this.clients = [];
+    let share =( 100 / this.coOwnersForms.length).toFixed(2);
+    _.forEach(this.coOwnersForms, obj => {
+      obj.owner.value.share = share;
+      this.clients.push(obj.owner.value);
+    });
+    this.clients = [...this.clients];
+    this.showGird = true;
+   
+    setTimeout(() => {
       this.sharegridRef.nativeElement.scrollIntoView();
       let rows = this.sharegridRef.nativeElement.querySelectorAll(".datatable-row-wrapper");
       let rowCells = rows[0].querySelectorAll(".datatable-body-cell-label");
@@ -336,109 +467,23 @@ export class ClientComponent implements OnInit, OnDestroy {
         rowCells = rows[0].querySelectorAll(".datatable-body-cell-label");
         let textbox = rowCells[1].querySelectorAll(".grid-textbox");
         textbox[0].focus();
-      }, 500);
-      
-      return;
-    }
-
-
-    if (this.clients.length==1) {
-      this.clients[0].share = 100;
-    }
-
-    let vm: any = {};
-    vm.prospectDto = this.clients;
-    this.clientService.updateShares(vm).subscribe(res => {
-      this.toastr.success("Thank you for sharing the details. Registration Successful");
-      this.clear();
-    });
-
-    //if (this.customerform.valid) {
-    //  let isNewEntry = true;
-    //  var invalidList = _.filter(this.customerform.controls, function (item) {
-    //    return item.validator != null && item.value == "";
-    //  })
-    //  if (invalidList.length == 0) {
-    //    let currentCustomer = this.customerform.value;
-
-    //    if (currentCustomer.traces == "yes") {
-    //      if (currentCustomer.tracesPassword == "") {
-    //        this.toastr.error("Please enter the Traces password");
-    //        return;
-    //      }
-    //    }     
-
-    //  }
-    //  else {
-    //    Object.keys(this.customerform.controls).forEach(field => {
-    //      const control = this.customerform.get(field);
-    //      control.markAsTouched({ onlySelf: true });
-    //    });
-    //    this.toastr.error("Please fill the all manditory fields");
-    //    return;
-    //  }
-
-    //  var model = this.customerform.value;
-    //  if (model.prospectID == "" || model.prospectID == 0 || model.prospectID == null)
-    //    model.prospectID = 0;
-    //  else
-    //    isNewEntry = false;
-    //  if (model.traces == "yes" || model.isTracesRegistered)
-    //    model.isTracesRegistered = true;
-    //  else
-    //    model.isTracesRegistered = false;
-
-    //  if (model.form16b == 'yes')
-    //    model.allowForm16B = true;
-    //  else
-    //    model.allowForm16B = false;
-
-    //  model.dateOfBirth = moment(model.dateOfBirth).local().format();    
-    //  model.prospectPropertyID = 0;
-    //  if (model.prospectID == 0 ) {
-    //    model.prospectID = model.length + 1;
-    //    this.clients.push(_.clone(model));
-    //  } else {
-    //    this.clients[model.prospectID - 1] = _.clone(model);
-    //  }
-
-    //if (this.clients.length > 1) {
-    //  _.forEach(this.customerData, o => {
-    //    let cusInx = _.findIndex(this.clients, function (item) {
-    //      return item.prospectID == o.prospectID;
-    //    });
-    //    if (cusInx != null) {
-    //      this.clients[cusInx].share = parseFloat(o.share);
-    //    }
-    //  });
-    //} else {
-    //  this.clients[0].share = 100;
-    //}
-
-    //let property = { 'propertyID': this.propertyForm.value.propertyId, 'unitNo': this.propertyForm.value.unitNo, 'declarationDate': this.propertyForm.value.declarationDate, 'prospectPropertyID': 0 };
-    //let vm: any = {};
-    //vm.prospectPropertyDto = property;
-    //vm.prospectDto = this.clients;
-    //this.clientService.saveCustomer(vm).subscribe((res) => {
-    //  this.toastr.success("Thank you for sharing the details. Registration Successful");
-    //  // this.getCustomer(res);
-    //  this.clear();
-    //});
-    // }
+      }, 1000);
+    }, 1000);
   }
 
   isValid(param: any) {
-    return (param != "" && param != null && !isUndefined(param))
+   // return (param != "" && param != null && !isUndefined(param))
+    return (param != "" && param != null && param!=undefined)
   }
 
   ValidateAndCleanCustomer(): boolean {
     let name = this.customerform.get('name').value;
     let pan = this.customerform.get('pan').value;
     let emailID = this.customerform.get('emailID').value;
-    let mobileNo = this.customerform.get('mobileNo').value;
+   // let mobileNo = this.customerform.get('mobileNo').value;
     let dateOfBirth = this.customerform.get('dateOfBirth').value;
-    if ((!this.isValid(name) && !this.isValid(pan) && !this.isValid(emailID) && !this.isValid(mobileNo) && !this.isValid(dateOfBirth)) ||
-      (this.isValid(name) && this.isValid(pan) && this.isValid(emailID) && this.isValid(mobileNo) && this.isValid(dateOfBirth))) {
+    if ((!this.isValid(name) && !this.isValid(pan) && !this.isValid(emailID)  && !this.isValid(dateOfBirth)) ||
+      (this.isValid(name) && this.isValid(pan) && this.isValid(emailID)  && this.isValid(dateOfBirth))) {
 
       if (this.isValid(pan)) {
 
@@ -447,10 +492,10 @@ export class ClientComponent implements OnInit, OnDestroy {
         else
           this.customerform.value.isTracesRegistered = false;
 
-        if (this.customerform.value.form16b == 'yes')
-          this.customerform.value.allowForm16B = true;
-        else
-          this.customerform.value.allowForm16B = false;;
+        // if (this.customerform.value.form16b == 'yes')
+        //   this.customerform.value.allowForm16B = true;
+        // else
+        //   this.customerform.value.allowForm16B = false;;
 
         if (this.customerform.value.traces == "yes") {
           if (this.customerform.value.tracesPassword == "") {
@@ -498,7 +543,7 @@ export class ClientComponent implements OnInit, OnDestroy {
     let toastr = this.toastr;
     let isShareValid: boolean = true;
 
-    _.forEach(this.customerData, function (item) {
+    _.forEach(this.clients, function (item) {
       let val = parseFloat(item.share);
       if (isNaN(val) || val == 0) {
         isShareValid = false;
@@ -509,7 +554,7 @@ export class ClientComponent implements OnInit, OnDestroy {
       toastr.error("Please enter valid share value");
       return false;
     }
-    if (share != 100 && share > 0) {
+    if (Math.round(share) != 100 && share > 0) {
       this.toastr.error("Sum of share % must be equal to 100");
       return false;
     }
@@ -525,43 +570,181 @@ export class ClientComponent implements OnInit, OnDestroy {
 
   addCoClient() {
     this.saveOneCustomer(true);
+    this.VisibleCoCownerBtn = false;
+    this.ShowCoOwnerOption = false;
+    this.ShowMoreCoOwnerOption = true;
+
   }
+
+  ValidateCustomer(): boolean {
+    this.clearValidator();
+    var item = this.coOwnersForms[this.coOwnersForms.length - 1].owner;
+    item.markAllAsTouched();
+    this.propertyForm.markAllAsTouched();
+    //var isValid: boolean = false;
+    //_.filter(item.controls, function (item) {
+    //  if (item.status == "VALID")
+    //    isValid = true;
+    //  else
+    //    isValid = false;
+    //});
+    if (item.valid && this.propertyForm.valid) {
+
+      var invalidList = _.filter(item.controls, function (ctrl,key) {
+        return ctrl.validator != null && ctrl.value == "";
+      });
+      if (invalidList.length == 0) {
+        let currentCustomer = item.value;
+
+        if (currentCustomer.traces == "yes") {
+          if (currentCustomer.tracesPassword == "") {
+            this.toastr.error("Please enter the Traces password");
+            return false;
+          }
+        }
+
+      }
+      else {
+        Object.keys(this.coOwnersForms[this.currentCustomer].owner.controls).forEach(field => {
+          const control = this.coOwnersForms[this.currentCustomer].owner.get(field);
+          control.markAsTouched({ onlySelf: true });
+        });
+        this.toastr.error("Please fill the all manditory fields");
+        return false;
+      }
+
+      //Note : Please Enable on complete
+      // if (!this.isValid(this.coOwnersForms[this.currentCustomer].owner.value.panBlobId)) {
+      //   this.toastr.error("Please upload PAN Document");
+      //   return false;
+      // }
+      return true;
+    }
+    else {
+      this.toastr.error("Please fill the all manditory fields"); 
+      return false;
+    }
+   
+  }
+
+  deleteCustomer() {
+    this.coOwnersForms.splice(this.currentCustomer, 1);
+    if (this.coOwnersForms.length > 0) {
+      this.coOwnersForms[this.coOwnersForms.length - 1].ShowMoreCoOwnerOption = true;
+      this.coOwnersForms[this.coOwnersForms.length - 1].AddMoreCoOwner = '';
+      this.coOwnersForms[this.coOwnersForms.length - 1].Back = false;
+      this.selectedTab = this.currentCustomer == 0 ? 0 : this.currentCustomer - 1;
+      this.coOwnersForms[0].Previous = false;
+      this.showGird = false;
+    }
+    else {     
+      this.addTab();
+      this.coOwnersForms[0].Back = false;
+      this.coOwnersForms[0].Previous = false;
+     
+    }
+  }
+
+  UpdateClientList() {
+    _.forEach(this.coOwnersForms, obj => {
+      obj.ShowCoOwnerOption = false;
+      obj.ShowMoreCoOwnerOption = false;
+      obj.ShowDeleteBtn = true;
+      obj.Next = true;
+    });
+    this.addTab();
+  }
+  ShowAddCoOwnerBtn(event: any) {
+    var isValid = this.ValidateCustomer();
+    if (!isValid) {  
+    
+      setTimeout(() => {
+        this.clearValidator();
+        this.coOwnersForms[this.coOwnersForms.length - 1].AddNewCoOwner = '';
+        this.coOwnersForms[this.coOwnersForms.length - 1].AddMoreCoOwner = '';
+      }, 500);     
+      return;
+    }
+
+    var item = this.coOwnersForms[this.coOwnersForms.length - 1];
+    item.label = item.owner.value.name;
+    item.Back = false;
+    item.showAddressClearBtn = false;
+    if (event.value == "yes") {
+      item.ShowCoOwnerOption =false;
+      item.ShowMoreCoOwnerOption = false;
+      this.UpdateClientList();
+      this.shareTab = true;
+      this.showGird = false;
+     
+      setTimeout(() => {
+        var elm= document.querySelectorAll("input[formControlName='name']").item(0);
+        (elm as HTMLElement)?.focus();
+        //var namefield = this.coOwnersForms[this.coOwnersForms.length - 1].owner.get('name');
+        //namefield.nativeElement.focus();
+       // this.nameFieldRef.nativeElement.focus();
+      }, 1000);
+     
+      //this.nameFieldRef.nativeElement.click();
+     
+     // this.VisibleCoCownerBtn = true;
+    }
+    else {
+      this.shareTab = false;
+      this.selectedTab = this.coOwnersForms.length;
+      item.ShowCoOwnerOption = false;
+      item.ShowMoreCoOwnerOption = true;
+      //this.VisibleCoCownerBtn = false;
+      //this.saveOneCustomer(false);
+      this.SetupShareGrid();
+    }
+  }
+  back() {
+ 
+    this.ShowCoOwnerOption = true;
+    this.ShowMoreCoOwnerOption = false;
+    this.VisibleCoCownerBtn = false;
+  }
+
   removeRestriction() {
     this.customerform.removeControl('completed');
   }
   clearValidator() {
-    this.customerform.get("addressPremises").clearValidators();
-    this.customerform.get("alternateNumber").clearValidators();
-    this.customerform.get("adressLine1").clearValidators();
-    this.customerform.get("addressLine2").clearValidators();
-    this.customerform.get("isTracesRegistered").clearValidators();
-    this.customerform.get("tracesPassword").clearValidators();
-    this.customerform.get("traces").clearValidators();
-    this.customerform.get("share").clearValidators();
-    this.customerform.get("isd").clearValidators();
-    this.customerform.get("prospectID").clearValidators();
-    this.customerform.get("allowForm16B").clearValidators();
+    var item = this.coOwnersForms[this.coOwnersForms.length - 1].owner;
+    //item.get("addressPremises").clearValidators();
+    // item.get("alternateNumber").clearValidators();
+    // item.get("adressLine1").clearValidators();
+    // item.get("addressLine2").clearValidators();
+    item.get("isTracesRegistered").clearValidators();
+    item.get("tracesPassword").clearValidators();
+    item.get("traces").clearValidators();
+    item.get("share").clearValidators();
+    //item.get("isd").clearValidators();
+    item.get("prospectID").clearValidators();
+    //item.get("allowForm16B").clearValidators();
+    item.get("incomeTaxPassword").clearValidators();
   }
 
   clearAddress(): void {
-    this.showAddressClearBtn = false;
-    let client = this.customerform.value;
+    this.coOwnersForms[this.currentCustomer].showAddressClearBtn = false;
+    let client = this.coOwnersForms[this.currentCustomer].owner.value;
     this.customerform.reset();
-    client.adressLine1 = '';
-    client.addressLine2 = '';
-    client.city = '';
-    client.stateId = '';
-    client.pinCode = '';
-    this.customerform.patchValue(client);
-    Object.keys(this.customerform.controls).forEach(field => {
-      const control = this.customerform.get(field);
+    // client.adressLine1 = '';
+    // client.addressLine2 = '';
+    // client.city = '';
+    // client.stateId = '';
+    // client.pinCode = '';
+    this.coOwnersForms[this.currentCustomer].owner.patchValue(client);
+    Object.keys(this.coOwnersForms[this.currentCustomer].owner.controls).forEach(field => {
+      const control = this.coOwnersForms[this.currentCustomer].owner.get(field);
       control.setErrors(null);
     });
 
   }
   getAllProperties() {
     this.clientService.getPropertyList().subscribe((response) => {
-      this.propertyList = _.filter(response, o => { return o.isActive == null || o.isActive == true; });;
+      this.propertyList = _.filter(response, o => { return o.isActive == null || o.isActive == true; });
+      this.filteredProperty.next(this.propertyList.slice());
     });
   }
 
@@ -571,19 +754,19 @@ export class ClientComponent implements OnInit, OnDestroy {
     });
   }
 
-  selectedState(eve) {
-    if (eve.value == 37) {
-      this.customerform.get('pinCode').setValue("999999");
-    }
-  }
+  // selectedState(eve) {
+  //   if (eve.value == 37) {
+  //     this.coOwnersForms[this.currentCustomer].owner.get('pinCode').setValue("999999");
+  //   }
+  // }
 
-  pinCodeValidator(): ValidatorFn {
-    return (control: AbstractControl): { [key: string]: any } | null => {
-      // if input field is empty return as valid else test
-      const ret = (control.value !== '') ? new RegExp('^[0-9]*$').test(control.value) : true;
-      return !ret ? { 'invalidNumber': { value: control.value } } : null;
-    };
-  }
+  // pinCodeValidator(): ValidatorFn {
+  //   return (control: AbstractControl): { [key: string]: any } | null => {
+  //     // if input field is empty return as valid else test
+  //     const ret = (control.value !== '') ? new RegExp('^[0-9]*$').test(control.value) : true;
+  //     return !ret ? { 'invalidNumber': { value: control.value } } : null;
+  //   };
+  // }
 
   loadCustomerByPan(id: string) {
     if (id.length != 10) {
@@ -597,46 +780,41 @@ export class ClientComponent implements OnInit, OnDestroy {
     if (existInx > -1) {
       return;
     }
+  }
+  // uploadPan(event) {
+  //   if (event.target.files && event.target.files.length > 0) {
+  //     const files = event.target.files[0];
+  //     let formData = new FormData();
+  //     formData.append(files.name, files);
+  //     this.coOwnersForms[this.currentCustomer].panDoc.fileName = files.name;
+  //     let pan = this.coOwnersForms[this.currentCustomer].owner.get('pan').value;
 
-    //this.clientService.getCustomerByPan(id).subscribe((response) => {
-    //  if (response != null) {
-    //    this.customerform.reset();
-    //    this.clients.push(response);
-    //    this.showClient('',response);
-    //  }
-    //});
-  }
-  uploadPan(event) {
-    if (event.target.files && event.target.files.length > 0) {
-      const files = event.target.files[0];
-      let formData = new FormData();
-      formData.append(files.name, files);
-      this.panDoc.fileName = files.name;
-      let pan = this.customerform.get('pan').value;
-      this.clientService.uploadPan(formData, pan).subscribe((eve) => {
-        if (eve.type == HttpEventType.Sent) {
+  //     //Note : this should be enable on commit
+
+  //     this.clientService.uploadPan(formData, pan).subscribe((eve) => {
+  //       if (eve.type == HttpEventType.Sent) {
          
-        }
-        if (eve.type == HttpEventType.Response) {
-          this.toastr.success("File Uploaded successfully");
-          this.customerform.get('panBlobId').setValue(eve.body);
-        }
-      },
-        (err) => { },
-        () => {
-          event.target.value = "";
-          this.loadPanDocument(pan);
-        }
-      );
-    }
-  }
+  //       }
+  //       if (eve.type == HttpEventType.Response) {
+  //         this.toastr.success("File Uploaded successfully");
+  //         this.coOwnersForms[this.currentCustomer].owner.get('panBlobId').setValue(eve.body);
+  //       }
+  //     },
+  //       (err) => { },
+  //       () => {
+  //         event.target.value = "";
+  //         this.loadPanDocument(pan);
+  //       }
+  //     );
+  //   }
+  // }
 
   loadPanDocument(id: string) {
     this.clientService.getUploadedPan(id).subscribe((response) => {
       if (response != null)
-        this.panDoc = response;
+        this.coOwnersForms[this.currentCustomer].panDoc = response;
       else {
-        this.panDoc = {};
+        this.coOwnersForms[this.currentCustomer].panDoc = {};
       }
     });
   }
@@ -696,41 +874,41 @@ export class ClientComponent implements OnInit, OnDestroy {
     this.clientService.deleteFile(id).subscribe(() => {
       this.toastr.success("FIle is deleted successfully");
       if (type == "pan")
-        this.loadPanDocument(this.customerform.get('pan').value);
+        this.loadPanDocument(this.coOwnersForms[this.currentCustomer].owner.get('pan').value);
      
     });
   }
 
-  
-  openDialog(): void {
-    let isValid = new RegExp('^[A-Za-z]{5}[0-9]{4}[A-Za-z]$').test(this.customerform.get('pan').value);
-    if (!isValid) {
-      this.toastr.warning("Please Fill the Pan number");
-      return;
-    } 
-
+  StartCamera() {
     const dialogRef = this.dialog.open(ImageCaptureDialogComponent, {
       hasBackdrop: false,
       maxHeight: 650,
       maxWidth: 1000,
-      width: "800px"  
+      width: "800px"
     });
 
     dialogRef.afterClosed().subscribe((res) => {
-      if (!isUndefined(res)) {
+      if (res == "")
+        return;
+      if (res == "not Supported") {
+        this.toastr.warning("Camera is not supported");
+        return;
+      }
+        
+      if (res!=undefined) {
         let formData = new FormData();
-        let pan = this.customerform.get('pan').value;
+        let pan = this.coOwnersForms[this.currentCustomer].owner.get('pan').value;
         let fileName = pan + ".png";
         var fileOfBlob = new File([res], fileName);
         formData.append(fileName, fileOfBlob);
-        this.panDoc.fileName = fileName;        
+        this.coOwnersForms[this.currentCustomer].panDoc.fileName = fileName;
         this.clientService.uploadPan(formData, pan).subscribe((eve) => {
           if (eve.type == HttpEventType.Sent) {
-           
+
           }
           if (eve.type == HttpEventType.Response) {
             this.toastr.success("File Uploaded successfully");
-            this.customerform.get('panBlobId').setValue(eve.body);
+            this.coOwnersForms[this.currentCustomer].owner.get('panBlobId').setValue(eve.body);
           }
         },
           (err) => { },
@@ -738,9 +916,120 @@ export class ClientComponent implements OnInit, OnDestroy {
             this.loadPanDocument(pan);
           }
         );
+      } else {
+        this.toastr.warning("Camera is not supported");
       }
       console.log('The dialog was closed');
     });
   }
 
+  handleError(toastr) {
+    toastr.warning('Sorry, camera not available.');
+  }
+  openDialog(): void {
+    let isValid = new RegExp('^[A-Za-z]{5}[0-9]{4}[A-Za-z]$').test(this.coOwnersForms[this.currentCustomer].owner.get('pan').value);
+    if (!isValid) {
+      this.toastr.warning("Please Fill the Pan number");
+      return;
+    } 
+    var constraints = {
+      video: {
+        facingMode: "environment"
+      }
+    };
+    this.StartCamera();
+    //if (!!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) {
+    //  var self = this;
+    //  navigator.mediaDevices.getUserMedia(constraints).then((x) => this.StartCamera()).catch(() => { this.handleError(this.toastr); });
+    //}
+    //else {
+    //  alert('Sorry, Camera not available.');
+    //}    
+  }
+
+  tabChanged(eve: MatTabChangeEvent) {
+    this.currentCustomer = eve.index;
+    if (this.currentCustomer == this.coOwnersForms.length - 1) {
+      if (this.shareTab) {
+        this.coOwnersForms[this.currentCustomer].Next = false;
+        this.coOwnersForms[this.currentCustomer].Previous = false;       
+      }
+      else {
+        this.coOwnersForms[this.currentCustomer].Next = true;
+        this.coOwnersForms[this.currentCustomer].Previous = true;
+        this.coOwnersForms[this.currentCustomer].ShowDeleteBtn = true;
+      }
+    }
+    else {
+      if (this.currentCustomer < this.coOwnersForms.length) {
+        this.coOwnersForms[this.currentCustomer].Next = true;
+        this.coOwnersForms[this.currentCustomer].Previous = true;
+        this.coOwnersForms[this.currentCustomer].ShowDeleteBtn = true;
+      }    
+    }
+
+    if (this.currentCustomer == 0) {
+      if (this.shareTab) 
+        this.coOwnersForms[this.currentCustomer].Next = false;
+        else
+        this.coOwnersForms[this.currentCustomer].Next = true;
+      if (this.coOwnersForms.length > 1)
+        this.coOwnersForms[this.currentCustomer].Next = true;
+      else {
+        if (this.shareTab)
+          this.coOwnersForms[this.currentCustomer].ShowDeleteBtn = false;
+        else
+          this.coOwnersForms[this.currentCustomer].ShowDeleteBtn = true;
+      }
+      this.coOwnersForms[this.currentCustomer].Previous = false;
+      
+    }
+  
+    //if (eve.index == 1) {
+    //  this.clearHeadercustomerInfo();
+    //  this.search();
+    //  this.propertyDDl = _.clone(this.propertyList);
+    //  this.propertyDDl.splice(0, 0, { 'propertyID': '', 'addressPremises': '' });
+    //  this.showListGird = true;
+    //}
+    //else
+    //  this.showListGird = false;;
+  }
+  NavigateToPreviousTab() {
+    this.selectedTab = this.currentCustomer - 1; 
+  }
+  NavigateToNextTab() {
+    this.selectedTab = this.currentCustomer + 1;
+    if (this.selectedTab == this.coOwnersForms.length) {
+     
+      if (this.clients.length != this.coOwnersForms.length) {
+
+        this.showGird = false;
+        this.SetupShareGrid();
+      }
+    }
+  }
+
+
+  //property Filter functionality
+  protected filterProperty() {
+    if (!this.propertyList) {
+      return;
+    }
+    // get the search keyword
+    let search = this.propertyFilterCtrl.value;
+    if (!search) {
+      this.filteredProperty.next(this.propertyList.slice());
+      return;
+    } else {
+      search = search.toLowerCase();
+    }
+    // filter the banks
+    this.filteredProperty.next(this.filterProFun(search));
+  }
+
+  filterProFun(search) {
+    var list = this.propertyList.filter(prop => prop.addressPremises.toLowerCase().indexOf(search) > -1);
+    return list;
+  }
 }
