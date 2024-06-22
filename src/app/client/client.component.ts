@@ -404,12 +404,12 @@ export class ClientComponent implements OnInit, OnDestroy {
   }
 
   saveCustomer(): void {
-    this.clients = [];
-    let share = (100 / this.coOwnersForms.length).toFixed(2);
-    _.forEach(this.coOwnersForms, obj => {
-      obj.owner.value.share = share;
-      this.clients.push(obj.owner.value);
-    });
+    // this.clients = [];
+    // let share = (100 / this.coOwnersForms.length).toFixed(2);
+    // _.forEach(this.coOwnersForms, obj => {
+    //   obj.owner.value.share = share;
+    //   this.clients.push(obj.owner.value);
+    // });
    
     if (!this.validateSharePercentage()) {
       this.SetupShareGrid();
